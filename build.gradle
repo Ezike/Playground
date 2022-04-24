@@ -1,0 +1,33 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.6.0'
+}
+
+group = 'me.tezike'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.jetbrains.kotlin:kotlin-test-junit:1.6.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.0-native-mt'
+    implementation 'org.jetbrains.kotlin:kotlin-script-runtime:1.6.0'
+    implementation 'org.jetbrains.kotlin:kotlin-reflect:1.6.0'
+}
+
+test {
+    useJUnit()
+}
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "11"
+    kotlinOptions {
+        languageVersion = "1.6"
+        freeCompilerArgs += "-Xcontext-receivers"
+    }
+}
+
+compileTestKotlin {
+    kotlinOptions.jvmTarget = "11"
+}
