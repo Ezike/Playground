@@ -2,35 +2,31 @@ package samples;
 
 // really creepy implementation of acyclic visitor
 
-interface JavaVisitor {}
+interface JavaVisitor {
+}
 
 interface ExpressionVisitor extends JavaVisitor {
     void visit(Expression obj);
 }
 
-interface DoubleExpressionVisitor extends JavaVisitor
-{
+interface DoubleExpressionVisitor extends JavaVisitor {
     void visit(DoubleExpression obj);
 }
 
-interface AdditionExpressionVisitor extends JavaVisitor
-{
+interface AdditionExpressionVisitor extends JavaVisitor {
     void visit(AdditionExpression obj);
 }
 
-abstract class Expression
-{
+abstract class Expression {
     // optional
-    public void accept(JavaVisitor visitor)
-    {
+    public void accept(JavaVisitor visitor) {
         if (visitor instanceof ExpressionVisitor) {
             ((ExpressionVisitor) visitor).visit(this);
         }
     }
 }
 
-class DoubleExpression extends Expression
-{
+class DoubleExpression extends Expression {
     public double value;
 
     public DoubleExpression(double value) {
@@ -45,8 +41,7 @@ class DoubleExpression extends Expression
     }
 }
 
-class AdditionExpression extends Expression
-{
+class AdditionExpression extends Expression {
     public Expression left, right;
 
     public AdditionExpression(Expression left, Expression right) {
@@ -64,8 +59,7 @@ class AdditionExpression extends Expression
 
 class ExpressionPrinter implements
         DoubleExpressionVisitor,
-        AdditionExpressionVisitor
-{
+        AdditionExpressionVisitor {
     private StringBuilder sb = new StringBuilder();
 
     @Override
@@ -88,8 +82,7 @@ class ExpressionPrinter implements
     }
 }
 
-class AcyclicVisitorDemo
-{
+class AcyclicVisitorDemo {
     public static void main(String[] args) {
         AdditionExpression e = new AdditionExpression(
                 new DoubleExpression(1),

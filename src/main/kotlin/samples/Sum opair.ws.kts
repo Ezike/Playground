@@ -65,7 +65,7 @@ fun isValid2(s: String): Boolean {
     return alles.values.map { it.second }.reduce { a, b -> a + b } == 0
 }
 
-fun isValid2(s: String): Boolean {
+fun isValid22(s: String): Boolean {
     fun check(open: Char){
         
     }
