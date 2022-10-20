@@ -1,34 +1,6 @@
-import MenuOperation.Configuration
+import Menu.Configuration
 
-interface Menu : MenuOperation {
-
-    companion object {
-        fun create(
-            recipes: List<Recipe>,
-            subscription: Subscription
-        ): Menu {
-            val configuration = Configuration.Default(subscription.isFamily)
-            val operation: MenuOperation = MenuInteractor(recipes, configuration)
-            return DefaultMenu(operation)
-        }
-    }
-}
-
-fun main() {
-    val menu = Menu.create(
-        recipes = listOf(Recipe(1, "Menu", listOf("hot"))),
-        subscription = Subscription(1, 1, true)
-    )
-    println(menu)
-    println(menu.selectRecipe(1))
-    println(menu.selectRecipe(1, 2, 3, 4))
-    println(menu.selectedRecipes)
-    println(menu.unselectRecipe(1))
-    println(menu.getRecipesWithTag("hot"))
-    println(menu.selectedRecipes)
-}
-
-interface MenuOperation {
+interface Menu {
     val recipes: List<Recipe>
     val selectedRecipes: List<Recipe>
     val selectedRecipeCount: Int
@@ -41,6 +13,13 @@ interface MenuOperation {
 
         companion object
     }
+
+    companion object {
+        fun create(
+            recipes: List<Recipe>,
+            subscription: Subscription
+        ): Menu = DefaultMenu(recipes, subscription)
+    }
 }
 
 fun Configuration.Companion.Default(isFamily: Boolean): Configuration =
@@ -49,63 +28,177 @@ fun Configuration.Companion.Default(isFamily: Boolean): Configuration =
             get() = if (isFamily) 5 else 3
     }
 
+interface MenuOperation : Menu {
+
+    companion object {
+        fun create(
+            recipes: List<Recipe>,
+            subscription: Subscription
+        ): MenuOperation {
+            val configuration = Configuration.Default(subscription.isFamily)
+            return MenuInteractor(recipes, RecipeValidatorImpl(configuration))
+        }
+    }
+}
+
 private data class DefaultMenu(
-    private val operation: MenuOperation
-) : Menu, MenuOperation by operation
+    override val recipes: List<Recipe>,
+    private val subscription: Subscription
+) : Menu, MenuOperation by MenuOperation.create(recipes, subscription)
+
+fun main() {
+    val menu = Menu.create(
+        recipes = listOf(Recipe(1, "Menu", listOf("hot"))),
+        subscription = Subscription(1, 1, false)
+    )
+    println(menu)
+    println(menu.selectRecipe(1))
+    println(menu.selectRecipe(1))
+    println(menu.selectedRecipes)
+    println(menu.unselectRecipe(1))
+    println(menu.unselectRecipe(1))
+    println(menu.getRecipesWithTag("hot"))
+    println(menu.selectedRecipes)
+}
 
 class MenuInteractor(
     override val recipes: List<Recipe>,
-    private val configuration: Configuration
+    private val validator: RecipeValidator
 ) : MenuOperation {
 
-    private data class SelectedRecipe(
+    private data class RecipeModel(
         val recipe: Recipe,
         val isSelected: Boolean
     )
 
-    private val menuMap = recipes.associate { it.id to SelectedRecipe(it, false) }.toMutableMap()
+    private val recipeMap = recipes
+        .associate { recipe -> recipe.id to RecipeModel(recipe, false) }
+        .toMutableMap()
 
     override val selectedRecipes: List<Recipe>
-        get() = menuMap.values.filter { it.isSelected }.map { it.recipe }
+        get() = recipeMap.values.filter { it.isSelected }.map { it.recipe }
 
     override val selectedRecipeCount: Int
-        get() = menuMap.values.count { it.isSelected }
+        get() = recipeMap.values.count { it.isSelected }
 
-    override fun selectRecipe(vararg ids: Int): Result<String> {
-        if (ids.isEmpty()) {
-            return Result.failure(EmptyRecipeException())
-        }
-        if (ids.size > configuration.minimumSelection) {
-            return Result.failure(MaxSelectedRecipeException(configuration.minimumSelection))
-        }
-        var count = 0
-        for (recipeId in ids) {
-            menuMap[recipeId] =
-                menuMap[recipeId]?.copy(isSelected = true) ?: continue
-            count++
-        }
-        return success(count, "Selected")
-    }
+    override fun selectRecipe(vararg ids: Int): Result<String> =
+        validator
+            .validateSelection(
+                ids = ids.toList(),
+                recipeIds = recipes.map { it.id },
+                unselectedRecipeIds = recipeMap.values.filter {
+                    !it.isSelected
+                }.map { it.recipe.id }
+            ).mapCatching { select(*ids) }
 
-    override fun unselectRecipe(vararg ids: Int): Result<String> {
-        if (ids.isEmpty()) {
-            return Result.failure(EmptyRecipeException())
-        }
-        var count = 0
-        for (recipeId in ids) {
-            menuMap[recipeId] =
-                menuMap[recipeId]?.copy(isSelected = false) ?: continue
-            count++
-        }
-        return success(count, "Unselected")
-    }
+    override fun unselectRecipe(vararg ids: Int): Result<String> =
+        validator
+            .validateUnSelection(
+                ids = ids.toList(),
+                recipeIds = recipes.map { it.id },
+                selectedRecipeIds = recipeMap.values.filter {
+                    it.isSelected
+                }.map { it.recipe.id }
+            ).mapCatching { unselect(*ids) }
 
     override fun getRecipesWithTag(tag: String): List<Recipe> =
-        menuMap.values.map { it.recipe }.filter { it.tags.contains(tag) }
+        recipeMap.values.map { it.recipe }.filter { it.tags.contains(tag) }
 
-    private fun success(count: Int, status: String): Result<String> {
+    private fun select(vararg ids: Int): String {
+        ids.forEach { recipeId ->
+            recipeMap[recipeId] =
+                recipeMap[recipeId]!!.copy(isSelected = true)
+        }
+        return success(ids.size, "Selected")
+    }
+
+    private fun unselect(vararg ids: Int): String {
+        ids.forEach { recipeId ->
+            recipeMap[recipeId] =
+                recipeMap[recipeId]!!.copy(isSelected = false)
+        }
+        return success(ids.size, "Unselected")
+    }
+
+    private fun success(count: Int, status: String): String {
         val text = if (count > 1) "recipes" else "recipe"
-        return Result.success("$status $count $text")
+        return "$status $count $text"
+    }
+}
+
+interface RecipeValidator {
+
+    fun validateSelection(
+        ids: List<Int>,
+        recipeIds: List<Int>,
+        unselectedRecipeIds: List<Int>
+    ): Result<String>
+
+    fun validateUnSelection(
+        ids: List<Int>,
+        recipeIds: List<Int>,
+        selectedRecipeIds: List<Int>
+    ): Result<String>
+}
+
+class RecipeValidatorImpl(
+    private val configuration: Configuration
+) : RecipeValidator {
+
+    override fun validateSelection(
+        ids: List<Int>,
+        recipeIds: List<Int>,
+        unselectedRecipeIds: List<Int>
+    ): Result<String> = kotlin.runCatching {
+        checkEmpty(ids)
+        checkSize(ids, configuration.minimumSelection)
+        checkUnknown(ids, recipeIds)
+        checkSelected(ids, unselectedRecipeIds)
+        return Result.success("Success")
+    }
+
+    override fun validateUnSelection(
+        ids: List<Int>,
+        recipeIds: List<Int>,
+        selectedRecipeIds: List<Int>
+    ): Result<String> = kotlin.runCatching {
+        checkEmpty(ids)
+        checkUnknown(ids, recipeIds)
+        checkUnselected(ids, selectedRecipeIds)
+        return Result.success("Success")
+    }
+
+    private fun checkEmpty(ids: List<Int>) {
+        if (ids.isEmpty()) {
+            throw EmptyRecipeException()
+        }
+    }
+
+    private fun checkSize(ids: List<Int>, minSize: Int) {
+        if (ids.size > minSize) {
+            throw MinimumSelectionException(minSize)
+        }
+    }
+
+    private fun checkUnknown(ids: List<Int>, recipeIds: List<Int>) {
+        val unKnownRecipes = ids.subtract(recipeIds)
+        if (unKnownRecipes.isNotEmpty()) {
+            throw UnknownRecipeException(unKnownRecipes.joinToString())
+        }
+    }
+
+    private fun checkSelected(ids: List<Int>, unselectedRecipes: List<Int>) {
+        val items = ids.intersect(unselectedRecipes)
+        if (items.isEmpty()) {
+            throw RecipeSelectedException(ids.joinToString())
+        }
+    }
+
+    private fun checkUnselected(ids: List<Int>, selectedRecipes: List<Int>) {
+        val items = ids.intersect(selectedRecipes)
+        if (items.isEmpty()) {
+            throw RecipeUnSelectedException(ids.joinToString())
+        }
     }
 }
 
@@ -133,5 +226,8 @@ data class Subscription(
     val isFamily: Boolean
 )
 
-class MaxSelectedRecipeException(count: Int) : IllegalArgumentException("Can't select more than $count recipes")
-class EmptyRecipeException() : IllegalArgumentException("ids cannot be empty")
+class MinimumSelectionException(count: Int) : IllegalArgumentException("Can't select more than $count recipes")
+class EmptyRecipeException : IllegalArgumentException("ids cannot be empty")
+class UnknownRecipeException(ids: String) : IllegalArgumentException("Recipes with id ($ids) not found")
+class RecipeSelectedException(ids: String) : IllegalArgumentException("Recipes with id ($ids) is already selected")
+class RecipeUnSelectedException(ids: String) : IllegalArgumentException("Recipes with id ($ids) is already unselected")
