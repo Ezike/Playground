@@ -15,7 +15,7 @@ interface Menu {
     }
 
     companion object {
-        fun create(
+        operator fun invoke(
             recipes: List<Recipe>,
             subscription: Subscription
         ): Menu = DefaultMenu(recipes, subscription)
@@ -31,7 +31,7 @@ fun Configuration.Companion.Default(isFamily: Boolean): Configuration =
 interface MenuOperation : Menu {
 
     companion object {
-        fun create(
+        operator fun invoke(
             recipes: List<Recipe>,
             subscription: Subscription
         ): MenuOperation {
@@ -44,16 +44,16 @@ interface MenuOperation : Menu {
 private data class DefaultMenu(
     override val recipes: List<Recipe>,
     private val subscription: Subscription
-) : Menu, MenuOperation by MenuOperation.create(recipes, subscription)
+) : Menu by MenuOperation(recipes, subscription)
 
 fun main() {
-    val menu = Menu.create(
+    val menu = Menu(
         recipes = listOf(Recipe(1, "Menu", listOf("hot"))),
-        subscription = Subscription(1, 1, false)
+        subscription = Subscription(1, 1, true)
     )
     println(menu)
     println(menu.selectRecipe(1))
-    println(menu.selectRecipe(1))
+    println(menu.selectRecipe(1, 2, 3, 4))
     println(menu.selectedRecipes)
     println(menu.unselectRecipe(1))
     println(menu.unselectRecipe(1))
@@ -228,6 +228,6 @@ data class Subscription(
 
 class MinimumSelectionException(count: Int) : IllegalArgumentException("Can't select more than $count recipes")
 class EmptyRecipeException : IllegalArgumentException("ids cannot be empty")
-class UnknownRecipeException(ids: String) : IllegalArgumentException("Recipes with id ($ids) not found")
-class RecipeSelectedException(ids: String) : IllegalArgumentException("Recipes with id ($ids) is already selected")
-class RecipeUnSelectedException(ids: String) : IllegalArgumentException("Recipes with id ($ids) is already unselected")
+class UnknownRecipeException(ids: String) : IllegalArgumentException("Recipe with id ($ids) not found")
+class RecipeSelectedException(ids: String) : IllegalArgumentException("Recipe with id ($ids) is already selected")
+class RecipeUnSelectedException(ids: String) : IllegalArgumentException("Recipe with id ($ids) is already unselected")
