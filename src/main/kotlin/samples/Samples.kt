@@ -81,26 +81,31 @@ fun main() {
     //     sample.run()
     // }
 
-    val booleanCondition = Condition.isTrue(true)
+    val booleanCondition: Condition = Condition.isTrue(true)
         .or("".isEmpty())
         .and((7 downTo 6).isEmpty())
         .orThen(Condition.isNull(true))
+        .ifTrue {
+            println("Some side effect")
+        }.orElse {
+            println("E no work")
+        }
 
-    Condition.isNotNull(9)
+    val result: Boolean = Condition.isNotNull(9)
         .and(listOfNotNull(null))
         .or(null)
         .orThen(booleanCondition)
-        .andThen(booleanCondition)
         .ifTrue {
             println("Some side effect")
-       }.orElse {
-           println("E no work")
-       }.result(::println)
+        }.orElse {
+            println("E no work")
+        }.result()
 
 }
 
 fun interface Condition {
     fun isValid(): Boolean
+
     companion object {
         fun isNull(arg: Any?) = NullCondition { arg == null }
         fun isNotNull(arg: Any?) = NullCondition { arg != null }
@@ -153,12 +158,4 @@ inline fun Condition.orElse(action: () -> Unit): Condition {
     return this
 }
 
-@OptIn(ExperimentalContracts::class)
-inline fun Condition.result(action: (Boolean) -> Unit): Boolean {
-    contract {
-        callsInPlace(action, InvocationKind.EXACTLY_ONCE)
-    }
-    val valid = isValid()
-    action(valid)
-    return valid
-}
+fun Condition.result(): Boolean = isValid()
